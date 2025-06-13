@@ -24,18 +24,22 @@ print_error() {
 # Display help message
 show_help() {
     cat << EOF
-Usage: $0 [OPTIONS] [display-name] [github-username] [github-repo] [branch-name]
+Usage: $0 [OPTIONS]
 
 This script creates an Azure AD application with federated credentials for GitHub Actions.
 
-ARGUMENTS:
-    display-name      Display name for the Azure AD application (default: \$USER-timestamp)
-    github-username   GitHub username (default: auto-detected from git remote)
-    github-repo       GitHub repository name (default: auto-detected from git remote)
-    branch-name       Git branch name (default: main)
-
 OPTIONS:
-    -h, --help        Show this help message and exit
+    -h, --help                          Show this help message and exit
+    -d, --display-name <name>           Display name for the Azure AD application
+                                       (default: \$USER-timestamp)
+    -u, --github-username <username>    GitHub username
+                                       (default: auto-detected from git remote)
+    -r, --github-repo <repo>            GitHub repository name
+                                       (default: auto-detected from git remote)
+    -b, --branch <branch>               Git branch name (default: main)
+    -g, --resource-group <name>         Azure resource group name. If specified, the Contributor
+                                       role will be assigned at the resource group scope instead
+                                       of subscription scope
 
 DESCRIPTION:
     This script performs the following operations:
@@ -47,10 +51,11 @@ DESCRIPTION:
     6. Displays the required GitHub secrets
 
 EXAMPLES:
-    $0                                    # Use all default values
-    $0 my-app                            # Custom display name, other defaults
-    $0 my-app myuser myrepo main         # All custom values
-    $0 --help                            # Show this help
+    $0                                                    # Use all default values
+    $0 --display-name my-app                             # Custom display name, other defaults
+    $0 --resource-group my-rg --display-name my-app     # With resource group scope
+    $0 -g my-rg -d my-app -u myuser -r myrepo -b main   # All custom values with short options
+    $0 --help                                            # Show this help
 
 REQUIREMENTS:
     - Azure CLI must be installed and available in PATH
@@ -77,34 +82,56 @@ initialize_parameters() {
     local git_url=$(git remote get-url origin)
     local git_path=$(echo "$git_url" | sed -E 's#(.*github.com[:/])##')
     
-    # Set default values or use provided arguments
-    if [ -z "$1" ]; then
-        DISPLAY_NAME="$USER-$suffix"
-    else
-        DISPLAY_NAME=$1
-    fi
-
-    if [ -z "$2" ]; then
-        GITHUB_USERNAME=$(basename "$(dirname "$git_path")")
-    else
-        GITHUB_USERNAME=$2
-    fi
-
-    if [ -z "$3" ]; then
-        GITHUB_REPO=$(basename "$git_path" .git)
-    else
-        GITHUB_REPO=$3
-    fi
-
-    if [ -z "$4" ]; then
-        BRANCH_NAME="main"
-    else
-        BRANCH_NAME=$4
-    fi
-
+    # Initialize variables with default values
+    DISPLAY_NAME="$USER-$suffix"
+    GITHUB_USERNAME=$(basename "$(dirname "$git_path")")
+    GITHUB_REPO=$(basename "$git_path" .git)
+    BRANCH_NAME="main"
+    AZURE_RESOURCE_GROUP=""
+    
+    # Parse all options
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -d|--display-name)
+                DISPLAY_NAME="$2"
+                shift 2
+                ;;
+            -u|--github-username)
+                GITHUB_USERNAME="$2"
+                shift 2
+                ;;
+            -r|--github-repo)
+                GITHUB_REPO="$2"
+                shift 2
+                ;;
+            -b|--branch)
+                BRANCH_NAME="$2"
+                shift 2
+                ;;
+            -g|--resource-group)
+                AZURE_RESOURCE_GROUP="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -*)
+                print_error "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+            *)
+                print_error "Unexpected argument: $1"
+                print_error "All parameters must be specified as options. Use --help for usage information."
+                exit 1
+                ;;
+        esac
+    done
+    
     # Validate required parameters
     if [ -z "$DISPLAY_NAME" ] || [ -z "$GITHUB_USERNAME" ] || [ -z "$GITHUB_REPO" ] || [ -z "$BRANCH_NAME" ]; then
-        print_error "Usage: $0 <display-name> <github-username> <github-repo> <branch-name>"
+        print_error "Failed to initialize required parameters. Please check your git remote configuration."
         exit 1
     fi
 
@@ -113,6 +140,9 @@ initialize_parameters() {
     print_info "  GitHub Username: $GITHUB_USERNAME"
     print_info "  GitHub Repository: $GITHUB_REPO"
     print_info "  Branch Name: $BRANCH_NAME"
+    if [ -n "$AZURE_RESOURCE_GROUP" ]; then
+        print_info "  Azure Resource Group: $AZURE_RESOURCE_GROUP"
+    fi
 }
 
 # Azure login
@@ -211,11 +241,21 @@ assign_contributor_role() {
     print_info "Assigning Contributor role to service principal..."
     
     local subscription_id=$(az account show --query id -o tsv)
+    local scope
+    
+    # Determine scope based on resource group option
+    if [ -n "$AZURE_RESOURCE_GROUP" ]; then
+        scope="/subscriptions/$subscription_id/resourceGroups/$AZURE_RESOURCE_GROUP"
+        print_info "Using resource group scope: $scope"
+    else
+        scope="/subscriptions/$subscription_id"
+        print_info "Using subscription scope: $scope"
+    fi
     
     az role assignment create \
         --assignee "$APPLICATION_ID" \
         --role "Contributor" \
-        --scope "/subscriptions/$subscription_id"
+        --scope "$scope"
     
     if [ $? -ne 0 ]; then
         print_error "Failed to assign Contributor role to the service principal."
@@ -251,16 +291,6 @@ display_summary() {
 
 # Main execution flow
 main() {
-    # Check for help option
-    for arg in "$@"; do
-        case $arg in
-            -h|--help)
-                show_help
-                exit 0
-                ;;
-        esac
-    done
-    
     initialize_parameters "$@"
     azure_login
     create_azure_ad_app
