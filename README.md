@@ -11,10 +11,6 @@ https://learn.microsoft.com/ja-jp/training/modules/authenticate-azure-deployment
 1. deploy
 
 ```bash
-$ az login
-```
-
-```bash
 # if you want see help
 # $ script/deploy [--help|-h]
 
