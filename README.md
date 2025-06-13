@@ -1,6 +1,9 @@
-# Authenticate Azure Deployment Workflow with workload-identities
+# Login with OpenID Connect(OIDC)
+
+## Authenticate Azure Deployment Workflow with workload-identities
 
 https://github.com/Azure/login#login-with-openid-connect-oidc-recommended
+
 https://learn.microsoft.com/ja-jp/training/modules/authenticate-azure-deployment-workflow-workload-identities
 
 ## Usage
