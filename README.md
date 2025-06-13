@@ -13,6 +13,9 @@ https://learn.microsoft.com/ja-jp/training/modules/authenticate-azure-deployment
 ```bash
 $ script/deploy <display-name> <github-username> <github-repo> <branch-name>
 
+# if you want see help
+$ script/deploy [--help|-h]
+
 # if you want set to default
 $ script/deploy
 # display-name = $USER-$(date +%Y%m%d%H%M%S)

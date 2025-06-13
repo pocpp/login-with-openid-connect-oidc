@@ -21,6 +21,56 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Display help message
+show_help() {
+    cat << EOF
+Usage: $0 [OPTIONS] [display-name] [github-username] [github-repo] [branch-name]
+
+This script creates an Azure AD application with federated credentials for GitHub Actions.
+
+ARGUMENTS:
+    display-name      Display name for the Azure AD application (default: \$USER-timestamp)
+    github-username   GitHub username (default: auto-detected from git remote)
+    github-repo       GitHub repository name (default: auto-detected from git remote)
+    branch-name       Git branch name (default: main)
+
+OPTIONS:
+    -h, --help        Show this help message and exit
+
+DESCRIPTION:
+    This script performs the following operations:
+    1. Logs into Azure CLI
+    2. Creates an Azure AD application
+    3. Creates a federated credential for GitHub Actions
+    4. Creates a service principal
+    5. Assigns Contributor role to the service principal
+    6. Displays the required GitHub secrets
+
+EXAMPLES:
+    $0                                    # Use all default values
+    $0 my-app                            # Custom display name, other defaults
+    $0 my-app myuser myrepo main         # All custom values
+    $0 --help                            # Show this help
+
+REQUIREMENTS:
+    - Azure CLI must be installed and available in PATH
+    - jq must be installed for JSON processing
+    - Git repository with remote origin configured
+    - Appropriate Azure permissions to create AD applications
+
+OUTPUT:
+    The script creates the following files:
+    - app_creation_output.json: Azure AD application details
+    - policy.json: Federated credential policy
+
+    GitHub Secrets to configure:
+    - AZURE_CLIENT_ID
+    - AZURE_TENANT_ID
+    - AZURE_SUBSCRIPTION_ID
+
+EOF
+}
+
 # Initialize and validate parameters
 initialize_parameters() {
     local suffix=$(date +%Y%m%d%H%M%S)
@@ -201,6 +251,16 @@ display_summary() {
 
 # Main execution flow
 main() {
+    # Check for help option
+    for arg in "$@"; do
+        case $arg in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+        esac
+    done
+    
     initialize_parameters "$@"
     azure_login
     create_azure_ad_app
