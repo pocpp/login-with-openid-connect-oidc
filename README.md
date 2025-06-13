@@ -1,5 +1,7 @@
 # Azure OIDC Workload Identity Setup Tool
 
+[日本語](./README_ja.md)
+
 A simple tool to easily configure **Azure Deployment Workflow with Workload Identities** for any GitHub repository using OpenID Connect (OIDC) authentication.
 
 ## 🚀 What This Tool Does
