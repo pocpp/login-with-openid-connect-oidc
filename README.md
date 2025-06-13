@@ -11,13 +11,19 @@ https://learn.microsoft.com/ja-jp/training/modules/authenticate-azure-deployment
 1. deploy
 
 ```bash
-$ script/deploy <display-name> <github-username> <github-repo> <branch-name>
+$ az login
+```
 
+```bash
 # if you want see help
-$ script/deploy [--help|-h]
+# $ script/deploy [--help|-h]
+
+$ script/deploy -g my-rg -d my-app -u myuser -r myrepo -b main
 
 # if you want set to default
-$ script/deploy
+# $ script/deploy
+# subscription id = $(az account show -o tsv --query id)
+# resource group = none
 # display-name = $USER-$(date +%Y%m%d%H%M%S)
 # github-username = $(basename "$(dirname "$git_path")")
 # github-repo = $(basename "$git_path" .git)
