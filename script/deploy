@@ -207,17 +207,17 @@ EOF
 create_all_branches_federated_credential() {
     print_info "Creating federated credential for all branches (wildcard)..."
     
-    local app_id=$(jq -r '.appId' ./app_creation_output.json)
-    if [ -z "$app_id" ] || [ "$app_id" = "null" ]; then
+    local object_id=$(jq -r '.Id' ./app_creation_output.json)
+    if [ -z "$object_id" ] || [ "$object_id" = "null" ]; then
         print_error "Failed to retrieve application registration object ID."
         exit 1
     fi
     
-    APPLICATION_ID="$app_id"
+    OBJECT_ID="$object_id"
     
     # Create federated credential using Microsoft Graph API with wildcard pattern
     az rest --method post \
-        --url "https://graph.microsoft.com/beta/applications/$APPLICATION_ID/federatedIdentityCredentials" \
+        --url "https://graph.microsoft.com/beta/applications/$OBJECT_ID/federatedIdentityCredentials" \
         --body "{
             \"name\": \"MyFederatedCredential\",
             \"issuer\": \"https://token.actions.githubusercontent.com\",
