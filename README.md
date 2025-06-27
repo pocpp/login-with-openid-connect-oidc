@@ -58,10 +58,25 @@ cd /path/to/your/target/repository
   --branch main
 ```
 
+#### Allow access from all branches:
+```bash
+/path/to/login-with-openid-connect-oidc/script/deploy \
+  --all \
+  --display-name my-azure-app \
+  --github-username myusername \
+  --github-repo myrepository
+```
+
 #### Short form options:
 ```bash
 /path/to/login-with-openid-connect-oidc/script/deploy \
   -g my-rg -d my-app -u myuser -r myrepo -b main
+```
+
+#### Short form with all branches:
+```bash
+/path/to/login-with-openid-connect-oidc/script/deploy \
+  -a -g my-rg -d my-app -u myuser -r myrepo
 ```
 
 ### 4. Configure GitHub Secrets
@@ -121,7 +136,8 @@ jobs:
 | `--display-name` | `-d` | Azure AD application display name | `$USER-timestamp` |
 | `--github-username` | `-u` | GitHub username | Auto-detected from git remote |
 | `--github-repo` | `-r` | GitHub repository name | Auto-detected from git remote |
-| `--branch` | `-b` | Git branch name | `main` |
+| `--branch` | `-b` | Git branch name (ignored when `--all` is specified) | `main` |
+| `--all` | `-a` | Allow access from all branches using wildcard pattern | Specific branch only |
 | `--resource-group` | `-g` | Azure resource group for scoped permissions | Subscription scope (default) |
 
 ## 🔧 What the Script Does
@@ -146,7 +162,7 @@ Using OIDC Workload Identity provides several security advantages:
 
 - **No long-lived secrets**: Eliminates the need to store Azure service principal passwords
 - **Short-lived tokens**: Uses temporary tokens that expire automatically
-- **Conditional access**: Tokens are only valid for specific GitHub repository and branch
+- **Conditional access**: Tokens are only valid for specific GitHub repository (and specific branch or all branches based on configuration)
 - **Audit trail**: All authentication events are logged in Azure AD
 
 ## 📚 References

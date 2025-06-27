@@ -56,10 +56,25 @@ cd /path/to/your/target/repository
   --branch main
 ```
 
+#### 全ブランチからのアクセスを許可：
+```bash
+/path/to/login-with-openid-connect-oidc/script/deploy \
+  --all \
+  --display-name my-azure-app \
+  --github-username myusername \
+  --github-repo myrepository
+```
+
 #### 短縮形オプション：
 ```bash
 /path/to/login-with-openid-connect-oidc/script/deploy \
   -g my-rg -d my-app -u myuser -r myrepo -b main
+```
+
+#### 全ブランチ対応の短縮形：
+```bash
+/path/to/login-with-openid-connect-oidc/script/deploy \
+  -a -g my-rg -d my-app -u myuser -r myrepo
 ```
 
 ### 4. GitHubシークレットの設定
@@ -119,7 +134,8 @@ jobs:
 | `--display-name` | `-d` | Azure ADアプリケーション表示名 | `$USER-timestamp` |
 | `--github-username` | `-u` | GitHubユーザー名 | gitリモートから自動検出 |
 | `--github-repo` | `-r` | GitHubリポジトリ名 | gitリモートから自動検出 |
-| `--branch` | `-b` | Gitブランチ名 | `main` |
+| `--branch` | `-b` | Gitブランチ名（`--all`指定時は無視される） | `main` |
+| `--all` | `-a` | ワイルドカードパターンを使用して全ブランチからのアクセスを許可 | 特定ブランチのみ |
 | `--resource-group` | `-g` | スコープ権限用のAzureリソースグループ | サブスクリプションスコープ（デフォルト） |
 
 ## 🔧 スクリプトの動作
@@ -144,7 +160,7 @@ OIDC Workload Identityの使用により、以下のセキュリティ上の利�
 
 - **長期間有効なシークレットなし**: Azureサービスプリンシパルのパスワードを保存する必要がない
 - **短期間有効なトークン**: 自動的に期限切れになる一時的なトークンを使用
-- **条件付きアクセス**: 特定のGitHubリポジトリとブランチでのみ有効なトークン
+- **条件付きアクセス**: 特定のGitHubリポジトリ（および設定に基づく特定ブランチまたは全ブランチ）でのみ有効なトークン
 - **監査証跡**: すべての認証イベントがAzure ADにログ記録される
 
 ## 📚 参考資料
