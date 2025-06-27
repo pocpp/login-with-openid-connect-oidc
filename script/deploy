@@ -352,8 +352,15 @@ main() {
     initialize_parameters "$@"
     azure_login
     create_azure_ad_app
-    create_policy_file
-    create_federated_credential
+    
+    # Choose federated credential creation method based on --all option
+    if [ "$USE_ALL_BRANCHES" = "true" ]; then
+        create_all_branches_federated_credential
+    else
+        create_policy_file
+        create_federated_credential
+    fi
+    
     create_service_principal
     assign_contributor_role
     display_summary
