@@ -37,6 +37,9 @@ OPTIONS:
     -r, --github-repo <repo>            GitHub repository name
                                        (default: auto-detected from git remote)
     -b, --branch <branch>               Git branch name (default: main)
+                                       Note: ignored when --all is specified
+    -a, --all                           Allow access from all branches using wildcard pattern
+                                       (default: specific branch only)
     -g, --resource-group <name>         Azure resource group name. If specified, the Contributor
                                        role will be assigned at the resource group scope instead
                                        of subscription scope
@@ -53,8 +56,10 @@ DESCRIPTION:
 EXAMPLES:
     $0                                                    # Use all default values
     $0 --display-name my-app                             # Custom display name, other defaults
+    $0 --all --display-name my-app                       # Allow access from all branches
     $0 --resource-group my-rg --display-name my-app     # With resource group scope
-    $0 -g my-rg -d my-app -u myuser -r myrepo -b main   # All custom values with short options
+    $0 -a -g my-rg -d my-app -u myuser -r myrepo        # All branches with custom values
+    $0 -g my-rg -d my-app -u myuser -r myrepo -b main   # Specific branch with custom values
     $0 --help                                            # Show this help
 
 REQUIREMENTS:
@@ -88,6 +93,7 @@ initialize_parameters() {
     GITHUB_REPO=$(basename "$git_path" .git)
     BRANCH_NAME="main"
     AZURE_RESOURCE_GROUP=""
+    USE_ALL_BRANCHES=false
     
     # Parse all options
     while [[ $# -gt 0 ]]; do
@@ -107,6 +113,10 @@ initialize_parameters() {
             -b|--branch)
                 BRANCH_NAME="$2"
                 shift 2
+                ;;
+            -a|--all)
+                USE_ALL_BRANCHES=true
+                shift
                 ;;
             -g|--resource-group)
                 AZURE_RESOURCE_GROUP="$2"
@@ -139,7 +149,14 @@ initialize_parameters() {
     print_info "  Display Name: $DISPLAY_NAME"
     print_info "  GitHub Username: $GITHUB_USERNAME"
     print_info "  GitHub Repository: $GITHUB_REPO"
-    print_info "  Branch Name: $BRANCH_NAME"
+    if [ "$USE_ALL_BRANCHES" = "true" ]; then
+        print_info "  Branch Access: All branches (wildcard)"
+        if [ "$BRANCH_NAME" != "main" ]; then
+            print_warning "  Branch option '$BRANCH_NAME' is ignored when --all is specified"
+        fi
+    else
+        print_info "  Branch Name: $BRANCH_NAME"
+    fi
     if [ -n "$AZURE_RESOURCE_GROUP" ]; then
         print_info "  Azure Resource Group: $AZURE_RESOURCE_GROUP"
     fi
