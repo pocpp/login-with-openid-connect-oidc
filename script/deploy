@@ -86,7 +86,7 @@ initialize_parameters() {
     local suffix=$(date +%Y%m%d%H%M%S)
     local git_url=$(git remote get-url origin)
     local git_path=$(echo "$git_url" | sed -E 's#(.*github.com[:/])##')
-    
+
     # Initialize variables with default values
     DISPLAY_NAME="$USER-$suffix"
     GITHUB_USERNAME=$(basename "$(dirname "$git_path")")
@@ -94,7 +94,7 @@ initialize_parameters() {
     BRANCH_NAME="main"
     AZURE_RESOURCE_GROUP=""
     USE_ALL_BRANCHES=false
-    
+
     # Parse all options
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -138,7 +138,7 @@ initialize_parameters() {
                 ;;
         esac
     done
-    
+
     # Validate required parameters
     if [ -z "$DISPLAY_NAME" ] || [ -z "$GITHUB_USERNAME" ] || [ -z "$GITHUB_REPO" ] || [ -z "$BRANCH_NAME" ]; then
         print_error "Failed to initialize required parameters. Please check your git remote configuration."
@@ -177,13 +177,21 @@ azure_login() {
 create_azure_ad_app() {
     print_info "Creating Azure AD application '$DISPLAY_NAME'..."
     az ad app create --display-name "$DISPLAY_NAME" > ./app_creation_output.json
-    
+
     if [ $? -ne 0 ]; then
         print_error "Failed to create Azure AD application."
         exit 1
     fi
-    
+
+    # Extract and set APPLICATION_ID immediately
+    APPLICATION_ID=$(jq -r '.appId' ./app_creation_output.json)
+    if [ -z "$APPLICATION_ID" ] || [ "$APPLICATION_ID" = "null" ]; then
+        print_error "Failed to retrieve application ID from created application."
+        exit 1
+    fi
+
     print_info "Azure AD application '$DISPLAY_NAME' created successfully."
+    print_info "Application ID: $APPLICATION_ID"
 }
 
 # Create policy file for federated credential
@@ -206,15 +214,18 @@ EOF
 # Reference: https://learn.microsoft.com/entra/workload-id/workload-identities-flexible-federated-identity-credentials?tabs=github#azure-cli-azure-powershell-and-terraform-providers
 create_all_branches_federated_credential() {
     print_info "Creating federated credential for all branches (wildcard)..."
-    
-    local object_id=$(jq -r '.Id' ./app_creation_output.json)
+
+    # Validate APPLICATION_ID is available
+    validate_application_id
+
+    local object_id=$(jq -r '.id' ./app_creation_output.json)
     if [ -z "$object_id" ] || [ "$object_id" = "null" ]; then
         print_error "Failed to retrieve application registration object ID."
         exit 1
     fi
-    
+
     OBJECT_ID="$object_id"
-    
+
     # Create federated credential using Microsoft Graph API with wildcard pattern
     az rest --method post \
         --url "https://graph.microsoft.com/beta/applications/$OBJECT_ID/federatedIdentityCredentials" \
@@ -227,45 +238,34 @@ create_all_branches_federated_credential() {
                 \"languageVersion\": 1
             }
         }"
-    
+
     if [ $? -ne 0 ]; then
         print_error "Failed to create federated credential with wildcard pattern."
         exit 1
     fi
-    
+
     print_info "Federated credential for all branches created successfully."
-    
-    # List federated credentials for verification
-    az ad app federated-credential list --id "$APPLICATION_ID"
-    if [ $? -ne 0 ]; then
-        print_error "Failed to list federated credentials."
-        exit 1
-    fi
+
 }
 
 # Create federated credential
 create_federated_credential() {
     print_info "Creating federated credential..."
-    
-    local app_id=$(jq -r '.appId' ./app_creation_output.json)
-    if [ -z "$app_id" ] || [ "$app_id" = "null" ]; then
-        print_error "Failed to retrieve application registration object ID."
-        exit 1
-    fi
-    
-    APPLICATION_ID="$app_id"
-    
+
+    # Validate APPLICATION_ID is available
+    validate_application_id
+
     az ad app federated-credential create \
         --id "$APPLICATION_ID" \
         --parameters @policy.json
-    
+
     if [ $? -ne 0 ]; then
         print_error "Failed to create federated credential."
         exit 1
     fi
-    
+
     print_info "Federated credential created successfully."
-    
+
     # List federated credentials for verification
     az ad app federated-credential list --id "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
@@ -277,15 +277,18 @@ create_federated_credential() {
 # Create service principal
 create_service_principal() {
     print_info "Creating service principal..."
-    
+
+    # Validate APPLICATION_ID is available
+    validate_application_id
+
     az ad sp create --id "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
         print_error "Failed to create service principal for the application."
         exit 1
     fi
-    
+
     print_info "Service principal created successfully."
-    
+
     # Show service principal details for verification
     az ad sp show --id "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
@@ -297,10 +300,13 @@ create_service_principal() {
 # Assign contributor role to service principal
 assign_contributor_role() {
     print_info "Assigning Contributor role to service principal..."
-    
+
+    # Validate APPLICATION_ID is available
+    validate_application_id
+
     local subscription_id=$(az account show --query id -o tsv)
     local scope
-    
+
     # Determine scope based on resource group option
     if [ -n "$AZURE_RESOURCE_GROUP" ]; then
         scope="/subscriptions/$subscription_id/resourceGroups/$AZURE_RESOURCE_GROUP"
@@ -309,19 +315,19 @@ assign_contributor_role() {
         scope="/subscriptions/$subscription_id"
         print_info "Using subscription scope: $scope"
     fi
-    
+
     az role assignment create \
         --assignee "$APPLICATION_ID" \
         --role "Contributor" \
         --scope "$scope"
-    
+
     if [ $? -ne 0 ]; then
         print_error "Failed to assign Contributor role to the service principal."
         exit 1
     fi
-    
+
     print_info "Contributor role assigned successfully."
-    
+
     # List role assignments for verification
     az role assignment list --assignee "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
@@ -330,11 +336,19 @@ assign_contributor_role() {
     fi
 }
 
+# Validate APPLICATION_ID is set and valid
+validate_application_id() {
+    if [ -z "$APPLICATION_ID" ] || [ "$APPLICATION_ID" = "null" ]; then
+        print_error "APPLICATION_ID is not set. Cannot proceed."
+        exit 1
+    fi
+}
+
 # Display final summary and GitHub secrets
 display_summary() {
     local tenant_id=$(az account show --query tenantId -o tsv)
     local subscription_id=$(az account show --query id -o tsv)
-    
+
     print_info "Application registration and federated credential setup completed successfully."
     print_info "You can find the application registration details in ./app_creation_output.json"
     print_info "You can find the federated credential policy in ./policy.json"
