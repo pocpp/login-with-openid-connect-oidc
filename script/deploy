@@ -223,7 +223,7 @@ create_all_branches_federated_credential() {
             \"issuer\": \"https://token.actions.githubusercontent.com\",
             \"audiences\": [\"api://AzureADTokenExchange\"],
             \"claimsMatchingExpression\": {
-                \"value\": \"claims['sub'] matches 'repo:$GITHUB_USERNAME/$GITHUB_REPO:ref:refs/heads/*'\",
+                \"value\": \"claims['sub'] matches 'repo:$GITHUB_USERNAME/$GITHUB_REPO:ref:refs/heads/*'  and claims['job_workflow_ref'] matches '$GITHUB_USERNAME/$GITHUB_REPO/.github/workflows/*.yml@refs/heads/*'\",
                 \"languageVersion\": 1
             }
         }"
