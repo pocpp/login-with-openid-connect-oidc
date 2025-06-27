@@ -202,6 +202,47 @@ EOF
     print_info "Policy file created successfully."
 }
 
+# Create federated credential for all branches using Microsoft Graph API
+# Reference: https://learn.microsoft.com/entra/workload-id/workload-identities-flexible-federated-identity-credentials?tabs=github#azure-cli-azure-powershell-and-terraform-providers
+create_all_branches_federated_credential() {
+    print_info "Creating federated credential for all branches (wildcard)..."
+    
+    local app_id=$(jq -r '.appId' ./app_creation_output.json)
+    if [ -z "$app_id" ] || [ "$app_id" = "null" ]; then
+        print_error "Failed to retrieve application registration object ID."
+        exit 1
+    fi
+    
+    APPLICATION_ID="$app_id"
+    
+    # Create federated credential using Microsoft Graph API with wildcard pattern
+    az rest --method post \
+        --url "https://graph.microsoft.com/beta/applications/$APPLICATION_ID/federatedIdentityCredentials" \
+        --body "{
+            \"name\": \"MyFederatedCredential\",
+            \"issuer\": \"https://token.actions.githubusercontent.com\",
+            \"audiences\": [\"api://AzureADTokenExchange\"],
+            \"claimsMatchingExpression\": {
+                \"value\": \"claims['sub'] matches 'repo:$GITHUB_USERNAME/$GITHUB_REPO:ref:refs/heads/*'\",
+                \"languageVersion\": 1
+            }
+        }"
+    
+    if [ $? -ne 0 ]; then
+        print_error "Failed to create federated credential with wildcard pattern."
+        exit 1
+    fi
+    
+    print_info "Federated credential for all branches created successfully."
+    
+    # List federated credentials for verification
+    az ad app federated-credential list --id "$APPLICATION_ID"
+    if [ $? -ne 0 ]; then
+        print_error "Failed to list federated credentials."
+        exit 1
+    fi
+}
+
 # Create federated credential
 create_federated_credential() {
     print_info "Creating federated credential..."
