@@ -191,7 +191,7 @@ azure_login() {
 # Create Azure AD application
 create_azure_ad_app() {
     print_info "Creating Azure AD application '$DISPLAY_NAME'..."
-    print_command "az ad app create --display-name \"$DISPLAY_NAME\""
+    print_command "az ad app create --display-name \"$DISPLAY_NAME\" > ./app_creation_output.json"
     az ad app create --display-name "$DISPLAY_NAME" > ./app_creation_output.json
 
     if [ $? -ne 0 ]; then
