@@ -11,21 +11,21 @@ NC='\033[0m' # No Color
 # Utility functions
 print_info() {
     if [ "$QUIET_MODE" != "true" ]; then
-        echo -e "${GREEN}[INFO]${NC} $1"
+        printf '%s[INFO]%s %s\n' "${GREEN}" "${NC}" "$1"
     fi
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    printf '%s[WARNING]%s %s\n' "${YELLOW}" "${NC}" "$1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf '%s[ERROR]%s %s\n' "${RED}" "${NC}" "$1"
 }
 
 print_command() {
     if [ "$QUIET_MODE" != "true" ]; then
-        echo -e "${YELLOW}[COMMAND]${NC} $1"
+        printf '%s[COMMAND]%s %s\n' "${YELLOW}" "${NC}" "$1"
     fi
 }
 
