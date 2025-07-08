@@ -10,15 +10,23 @@ NC='\033[0m' # No Color
 
 # Utility functions
 print_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+    if [ "$QUIET_MODE" != "true" ]; then
+        printf '%s[INFO]%s %s\n' "${GREEN}" "${NC}" "$1"
+    fi
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    printf '%s[WARNING]%s %s\n' "${YELLOW}" "${NC}" "$1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf '%s[ERROR]%s %s\n' "${RED}" "${NC}" "$1"
+}
+
+print_command() {
+    if [ "$QUIET_MODE" != "true" ]; then
+        printf '%s[COMMAND]%s %s\n' "${YELLOW}" "${NC}" "$1"
+    fi
 }
 
 # Display help message
@@ -43,6 +51,7 @@ OPTIONS:
     -g, --resource-group <name>         Azure resource group name. If specified, the Contributor
                                        role will be assigned at the resource group scope instead
                                        of subscription scope
+    -q, --quiet                         Suppress info messages (errors and warnings still shown)
 
 DESCRIPTION:
     This script performs the following operations:
@@ -94,6 +103,7 @@ initialize_parameters() {
     BRANCH_NAME="main"
     AZURE_RESOURCE_GROUP=""
     USE_ALL_BRANCHES=false
+    QUIET_MODE=false
 
     # Parse all options
     while [[ $# -gt 0 ]]; do
@@ -121,6 +131,10 @@ initialize_parameters() {
             -g|--resource-group)
                 AZURE_RESOURCE_GROUP="$2"
                 shift 2
+                ;;
+            -q|--quiet)
+                QUIET_MODE=true
+                shift
                 ;;
             -h|--help)
                 show_help
@@ -165,6 +179,7 @@ initialize_parameters() {
 # Azure login
 azure_login() {
     print_info "Logging into Azure..."
+    print_command "az login"
     az login
     if [ $? -ne 0 ]; then
         print_error "Failed to login to Azure."
@@ -176,6 +191,7 @@ azure_login() {
 # Create Azure AD application
 create_azure_ad_app() {
     print_info "Creating Azure AD application '$DISPLAY_NAME'..."
+    print_command "az ad app create --display-name \"$DISPLAY_NAME\" > ./app_creation_output.json"
     az ad app create --display-name "$DISPLAY_NAME" > ./app_creation_output.json
 
     if [ $? -ne 0 ]; then
@@ -227,6 +243,15 @@ create_all_branches_federated_credential() {
     OBJECT_ID="$object_id"
 
     # Create federated credential using Microsoft Graph API with wildcard pattern
+    print_command "az rest --method post --url \"https://graph.microsoft.com/beta/applications/$OBJECT_ID/federatedIdentityCredentials\" --body '{
+        \"name\": \"MyFederatedCredential\",
+        \"issuer\": \"https://token.actions.githubusercontent.com\",
+        \"audiences\": [\"api://AzureADTokenExchange\"],
+        \"claimsMatchingExpression\": {
+            \"value\": \"claims['sub'] matches 'repo:$GITHUB_USERNAME/$GITHUB_REPO:ref:refs/heads/*' and claims['job_workflow_ref'] matches '$GITHUB_USERNAME/$GITHUB_REPO/.github/workflows/*.yml@refs/heads/*'\",
+            \"languageVersion\": 1
+        }
+    }'"
     az rest --method post \
         --url "https://graph.microsoft.com/beta/applications/$OBJECT_ID/federatedIdentityCredentials" \
         --body "{
@@ -255,6 +280,7 @@ create_federated_credential() {
     # Validate APPLICATION_ID is available
     validate_application_id
 
+    print_command "az ad app federated-credential create --id \"$APPLICATION_ID\" --parameters @policy.json"
     az ad app federated-credential create \
         --id "$APPLICATION_ID" \
         --parameters @policy.json
@@ -267,6 +293,7 @@ create_federated_credential() {
     print_info "Federated credential created successfully."
 
     # List federated credentials for verification
+    print_command "az ad app federated-credential list --id \"$APPLICATION_ID\""
     az ad app federated-credential list --id "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
         print_error "Failed to list federated credentials."
@@ -281,6 +308,7 @@ create_service_principal() {
     # Validate APPLICATION_ID is available
     validate_application_id
 
+    print_command "az ad sp create --id \"$APPLICATION_ID\""
     az ad sp create --id "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
         print_error "Failed to create service principal for the application."
@@ -290,6 +318,7 @@ create_service_principal() {
     print_info "Service principal created successfully."
 
     # Show service principal details for verification
+    print_command "az ad sp show --id \"$APPLICATION_ID\""
     az ad sp show --id "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
         print_error "Failed to show service principal details."
@@ -316,6 +345,7 @@ assign_contributor_role() {
         print_info "Using subscription scope: $scope"
     fi
 
+    print_command "az role assignment create --assignee \"$APPLICATION_ID\" --role \"Contributor\" --scope \"$scope\""
     az role assignment create \
         --assignee "$APPLICATION_ID" \
         --role "Contributor" \
@@ -329,6 +359,7 @@ assign_contributor_role() {
     print_info "Contributor role assigned successfully."
 
     # List role assignments for verification
+    print_command "az role assignment list --assignee \"$APPLICATION_ID\""
     az role assignment list --assignee "$APPLICATION_ID"
     if [ $? -ne 0 ]; then
         print_error "Failed to list role assignments for the service principal."
@@ -346,7 +377,9 @@ validate_application_id() {
 
 # Display final summary and GitHub secrets
 display_summary() {
+    print_command "az account show --query tenantId -o tsv"
     local tenant_id=$(az account show --query tenantId -o tsv)
+    print_command "az account show --query id -o tsv"
     local subscription_id=$(az account show --query id -o tsv)
 
     print_info "Application registration and federated credential setup completed successfully."
