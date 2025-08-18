@@ -394,9 +394,40 @@ display_summary() {
     print_info "-------------------------------------------------------------"
 }
 
+# Confirmation prompt
+confirm_deployment() {
+    print_info "The following Azure AD application will be created:"
+    print_info "  Display Name: $DISPLAY_NAME"
+    print_info "  GitHub Username: $GITHUB_USERNAME" 
+    print_info "  GitHub Repository: $GITHUB_REPO"
+    if [ "$USE_ALL_BRANCHES" = "true" ]; then
+        print_info "  Branch Access: All branches (wildcard)"
+    else
+        print_info "  Branch Name: $BRANCH_NAME"
+    fi
+    if [ -n "$AZURE_RESOURCE_GROUP" ]; then
+        print_info "  Azure Resource Group: $AZURE_RESOURCE_GROUP"
+    fi
+    print_info ""
+    
+    printf "Do you want to proceed with the deployment? (y/N): "
+    read -r response
+    case "$response" in
+        [yY]|[yY][eE][sS])
+            print_info "Proceeding with deployment..."
+            return 0
+            ;;
+        *)
+            print_info "Deployment cancelled."
+            exit 0
+            ;;
+    esac
+}
+
 # Main execution flow
 main() {
     initialize_parameters "$@"
+    confirm_deployment
     azure_login
     create_azure_ad_app
     
