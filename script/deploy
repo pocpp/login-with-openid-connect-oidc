@@ -394,34 +394,118 @@ display_summary() {
     print_info "-------------------------------------------------------------"
 }
 
+# Edit configuration interactively
+edit_configuration() {
+    while true; do
+        printf "Which parameter would you like to edit?\n"
+        printf "1) Display Name: $DISPLAY_NAME\n"
+        printf "2) GitHub Username: $GITHUB_USERNAME\n"
+        printf "3) GitHub Repository: $GITHUB_REPO\n"
+        if [ "$USE_ALL_BRANCHES" = "false" ]; then
+            printf "4) Branch Name: $BRANCH_NAME\n"
+        fi
+        printf "5) Resource Group: ${AZURE_RESOURCE_GROUP:-"(not set)"}\n"
+        printf "6) All Branches: $USE_ALL_BRANCHES\n"
+        printf "0) Done editing\n"
+        printf "Enter your choice (0-6): "
+        read -r choice
+        
+        case "$choice" in
+            1)
+                printf "Enter new Display Name [$DISPLAY_NAME]: "
+                read -r new_value
+                if [ -n "$new_value" ]; then
+                    DISPLAY_NAME="$new_value"
+                fi
+                ;;
+            2)
+                printf "Enter new GitHub Username [$GITHUB_USERNAME]: "
+                read -r new_value
+                if [ -n "$new_value" ]; then
+                    GITHUB_USERNAME="$new_value"
+                fi
+                ;;
+            3)
+                printf "Enter new GitHub Repository [$GITHUB_REPO]: "
+                read -r new_value
+                if [ -n "$new_value" ]; then
+                    GITHUB_REPO="$new_value"
+                fi
+                ;;
+            4)
+                if [ "$USE_ALL_BRANCHES" = "false" ]; then
+                    printf "Enter new Branch Name [$BRANCH_NAME]: "
+                    read -r new_value
+                    if [ -n "$new_value" ]; then
+                        BRANCH_NAME="$new_value"
+                    fi
+                else
+                    print_warning "Branch name cannot be edited when 'All Branches' is enabled."
+                fi
+                ;;
+            5)
+                printf "Enter new Resource Group [${AZURE_RESOURCE_GROUP:-"leave empty for subscription scope"}]: "
+                read -r new_value
+                AZURE_RESOURCE_GROUP="$new_value"
+                ;;
+            6)
+                printf "Enable all branches access? (y/N): "
+                read -r new_value
+                case "$new_value" in
+                    [yY]|[yY][eE][sS])
+                        USE_ALL_BRANCHES=true
+                        ;;
+                    *)
+                        USE_ALL_BRANCHES=false
+                        ;;
+                esac
+                ;;
+            0)
+                break
+                ;;
+            *)
+                print_warning "Invalid choice. Please enter a number between 0-6."
+                ;;
+        esac
+        printf "\n"
+    done
+}
+
 # Confirmation prompt
 confirm_deployment() {
-    print_info "The following Azure AD application will be created:"
-    print_info "  Display Name: $DISPLAY_NAME"
-    print_info "  GitHub Username: $GITHUB_USERNAME" 
-    print_info "  GitHub Repository: $GITHUB_REPO"
-    if [ "$USE_ALL_BRANCHES" = "true" ]; then
-        print_info "  Branch Access: All branches (wildcard)"
-    else
-        print_info "  Branch Name: $BRANCH_NAME"
-    fi
-    if [ -n "$AZURE_RESOURCE_GROUP" ]; then
-        print_info "  Azure Resource Group: $AZURE_RESOURCE_GROUP"
-    fi
-    print_info ""
-    
-    printf "Do you want to proceed with the deployment? (y/N): "
-    read -r response
-    case "$response" in
-        [yY]|[yY][eE][sS])
-            print_info "Proceeding with deployment..."
-            return 0
-            ;;
-        *)
-            print_info "Deployment cancelled."
-            exit 0
-            ;;
-    esac
+    while true; do
+        print_info "The following Azure AD application will be created:"
+        print_info "  Display Name: $DISPLAY_NAME"
+        print_info "  GitHub Username: $GITHUB_USERNAME" 
+        print_info "  GitHub Repository: $GITHUB_REPO"
+        if [ "$USE_ALL_BRANCHES" = "true" ]; then
+            print_info "  Branch Access: All branches (wildcard)"
+        else
+            print_info "  Branch Name: $BRANCH_NAME"
+        fi
+        if [ -n "$AZURE_RESOURCE_GROUP" ]; then
+            print_info "  Azure Resource Group: $AZURE_RESOURCE_GROUP"
+        else
+            print_info "  Azure Resource Group: (subscription scope)"
+        fi
+        print_info ""
+        
+        printf "Do you want to proceed? (y/N/e to edit): "
+        read -r response
+        case "$response" in
+            [yY]|[yY][eE][sS])
+                print_info "Proceeding with deployment..."
+                return 0
+                ;;
+            [eE]|[eE][dD][iI][tT])
+                edit_configuration
+                ;;
+            *)
+                print_info "Deployment cancelled."
+                exit 0
+                ;;
+        esac
+    done
 }
 
 # Main execution flow
